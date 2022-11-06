@@ -105,6 +105,7 @@ vector<bool> mutation(vector<bool> gene) {
 }
 
 void gen_children(vector<int> values, vector<vector<bool>> genes, vector<vector<bool>> * new_genes) {
+  cout << "a" << endl;
   int gene_size = genes[0].size();
   auto couple = get_couple(values);
   auto children = cross_over(genes[couple.first], genes[couple.second], rand()%gene_size);
@@ -114,6 +115,29 @@ void gen_children(vector<int> values, vector<vector<bool>> genes, vector<vector<
     new_genes->push_back(c1);
     new_genes->push_back(c2);
   new_genes_lock.unlock();
+  cout << "b" << endl;
+
+}
+
+void get_top_n_genes(vector<int> values, vector<vector<bool>> genes, vector<vector<bool>> * elite) {
+  // ordenacao eh pior que busca sequencial
+  pair<int, int> ret_idx;
+  int top1 = -1, top2 = -1;
+  for (int i = 0; i < values.size(); i++) {
+    if (top1 < values[i]) {
+      ret_idx = {i, ret_idx.first};
+
+      top2 = top1;
+      top1 = values[i];
+    }
+    else if (top2 < values[i]) {
+      ret_idx.second = i;
+
+      top2 = values[i];
+    }
+  }
+  (*elite)[0] = genes[ret_idx.first];
+  (*elite)[1] = genes[ret_idx.second];
 }
 
 extern "C" {
@@ -133,31 +157,38 @@ extern "C" {
     vector<int> values(genes_qtd, 0);
     vector<thread> t_vec(genes_qtd);
     for (int i = 0; i < genes_qtd; i++) {
-      // todo semaforo para limitar threads
+      // todo: semaforo para limitar threads
       t_vec[i] = thread(evaluate_sack, max_wheight, item_array, genes[i], &(values[i]));
     }
     for (int i = 0; i < genes_qtd; i++) 
       t_vec[i].join();
 
     // print_vec(values);
-    int children_qtd = 10;
+    int children_qtd = 8;
     vector<vector<bool>> new_genes;
     t_vec = vector<thread>(children_qtd);
+    
+    vector<vector<bool>> elite(2);
+    thread elite_t(get_top_n_genes, values, genes, &elite);
     for (int i = 0; i < children_qtd; i++) {
       // gen_children(values, genes, &new_genes);
       t_vec[i] = thread(gen_children, values, genes, &new_genes);
     }
 
-    for (int i = 0; i < genes_qtd; i++) 
+    for (int i = 0; i < children_qtd; i++) 
       t_vec[i].join();
-      // get new generation
-      // mutation
-    genes = new_genes;
+    elite_t.join();
+
+    cout << "d" << endl;
+
+    elite.insert(elite.end(), new_genes.begin(), new_genes.end());
+    genes = elite;
     for (int i = 0; i < genes.size(); i++) {
       print_vec(genes[i]);
     }
     cout << endl;
     int total = 0;
+
     // for (int i =0 ; i < values.size(); i++) {
     //   total += values[i];
     // }
